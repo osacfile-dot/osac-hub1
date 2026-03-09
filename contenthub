@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSAC MARKETING TEAM | Operational Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Poppins', sans-serif !important;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            margin: 0;
+            background: #ffffff;
+            color: #000000;
+            overflow-x: hidden;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #ffffff;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #f3f4f6;
+            border-radius: 10px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #000000;
+        }
+
+        .animate-in {
+            animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-white">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        const STATUSES = ["Not Started", "Scripting", "Shooting", "Editing", "Review", "Scheduled", "Published"];
+
+        const INITIAL_DATA = [
+            { id: 1, title: "Social Media Strategy", creator: "Alex Rivera", agentName: "Sam Smith", status: "Not Started", deadlineDate: "2026-02-25", postedDate: "", script: "", scriptUrl: "" },
+            { id: 2, title: "Property Tour v1", creator: "Jordan Smith", agentName: "Alex Rivera", status: "Editing", deadlineDate: "2026-02-28", postedDate: "", script: "", scriptUrl: "" }
+        ];
+
+        function OSACMarketingHub() {
+            const [contentItems, setContentItems] = useState(() => {
+                const saved = localStorage.getItem('osac_content_items');
+                return saved ? JSON.parse(saved) : INITIAL_DATA;
+            });
+
+            const [managedScripts, setManagedScripts] = useState(() => {
+                const saved = localStorage.getItem('osac_managed_scripts');
+                return saved ? JSON.parse(saved) : {
+                    "Property Projects": [],
+                    "Real Estate Trends": [],
+                    "Why Choose OSAC": [],
+                    "Authority Branding": [],
+                    "Social Proof": [],
+                    "Deal Celebration": []
+                };
+            });
+
+            useEffect(() => {
+                localStorage.setItem('osac_content_items', JSON.stringify(contentItems));
+            }, [contentItems]);
+
+            useEffect(() => {
+                localStorage.setItem('osac_managed_scripts', JSON.stringify(managedScripts));
+            }, [managedScripts]);
+
+            const [currentView, setCurrentView] = useState('calendar');
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [editingItem, setEditingItem] = useState(null);
+            const [viewDate, setViewDate] = useState(new Date());
+            const [previewUrl, setPreviewUrl] = useState(null);
+            const [previewName, setPreviewName] = useState("");
+
+            const [formData, setFormData] = useState({ title: '', creator: '', agentName: '', status: 'Not Started', deadlineDate: '', postedDate: '', script: '', scriptUrl: '' });
+
+            const handleOpenModal = (item = null, date = null) => {
+                if (item) {
+                    setEditingItem(item);
+                    setFormData(item);
+                } else {
+                    setEditingItem(null);
+                    setFormData({
+                        title: '',
+                        creator: '',
+                        agentName: '',
+                        status: 'Not Started',
+                        deadlineDate: date || new Date().toISOString().split('T')[0],
+                        postedDate: '',
+                        script: '',
+                        scriptUrl: ''
+                    });
+                }
+                setIsModalOpen(true);
+            };
+
+            const handleSave = (e) => {
+                e.preventDefault();
+                if (editingItem) {
+                    setContentItems(contentItems.map(i => i.id === editingItem.id ? { ...formData, id: editingItem.id } : i));
+                } else {
+                    setContentItems([...contentItems, { ...formData, id: Date.now() }]);
+                }
+                setIsModalOpen(false);
+            };
+
+            const handleDelete = () => {
+                if (editingItem) {
+                    setContentItems(contentItems.filter(i => i.id !== editingItem.id));
+                    setIsModalOpen(false);
+                }
+            };
+
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+            const startDay = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
+            const daysArr = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+            const placeholdersArr = Array.from({ length: startDay }, (_, i) => i);
+
+            const PILLARS = ["Property Projects", "Real Estate Trends", "Why Choose OSAC", "Authority Branding", "Social Proof", "Deal Celebration"];
+            const [selectedPillar, setSelectedPillar] = useState(null);
+
+            const handleUploadToPillar = (pillar, file) => {
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setManagedScripts(prev => ({
+                        ...prev, [pillar]: [...prev[pillar], { id: Date.now(), name: file.name, url: reader.result, date: new Date().toLocaleDateString() }]
+                    }));
+                };
+                reader.readAsDataURL(file);
+            };
+
+            const handleDeleteFromPillar = (pillar, scriptId) => {
+                setManagedScripts(prev => ({ ...prev, [pillar]: prev[pillar].filter(s => s.id !== scriptId) }));
+            };
+
+            const ContentPillarsView = () => (
+                <div className="animate-in space-y-12">
+                    {!selectedPillar ? (
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-8">
+                            {PILLARS.map(pillar => (
+                                <div key={pillar} onClick={() => setSelectedPillar(pillar)} className="bg-white border border-gray-100 rounded-[3rem] p-12 shadow-xl shadow-gray-50 hover:border-black transition-all cursor-pointer group flex flex-col items-center text-center">
+                                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform">
+                                        {pillar.includes("Property") ? "🏢" : pillar.includes("Trends") ? "📈" : pillar.includes("Why") ? "❓" : pillar.includes("Branding") ? "👑" : pillar.includes("Proof") ? "💬" : "🎉"}
+                                    </div>
+                                    <h3 className="text-xl tracking-tighter mb-4">{pillar}</h3>
+                                    <p className="text-[10px] text-gray-400 tracking-widest">{managedScripts[pillar].length} Scripts stored</p>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="bg-white border border-gray-100 rounded-[3rem] p-12 shadow-2xl shadow-gray-50 min-h-[600px] flex flex-col">
+                            <div className="flex justify-between items-center mb-12 border-b border-gray-50 pb-8">
+                                <button onClick={() => setSelectedPillar(null)} className="text-[10px] tracking-widest hover:text-black flex items-center group">
+                                    <span className="mr-2 group-hover:-translate-x-1 transition-transform">←</span> Back to pillars
+                                </button>
+                                <h3 className="text-3xl tracking-tighter font-light">{selectedPillar}</h3>
+                                <button onClick={() => document.getElementById('pillarUpload').click()} className="bg-black text-white px-8 py-4 rounded-2xl text-[10px] tracking-widest hover:scale-105 transition-all shadow-xl shadow-black/20">
+                                    Upload new script
+                                </button>
+                                <input type="file" id="pillarUpload" className="hidden" onChange={(e) => { if (e.target.files[0]) handleUploadToPillar(selectedPillar, e.target.files[0]); }} />
+                            </div>
+                            <div className="flex-1 space-y-4">
+                                {managedScripts[selectedPillar].length === 0 ? (
+                                    <div className="h-full flex flex-col items-center justify-center text-gray-300 py-20">
+                                        <p className="text-[10px] tracking-[0.4em]">No scripts uploaded yet</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 gap-4">
+                                        {managedScripts[selectedPillar].map(script => (
+                                            <div key={script.id} className="flex justify-between items-center p-8 bg-gray-50 rounded-3xl border border-transparent hover:border-black/10 transition-all group">
+                                                <div className="flex items-center">
+                                                    <span className="text-2xl mr-6">📄</span>
+                                                    <div>
+                                                        <p className="text-sm tracking-widest mb-1">{script.name}</p>
+                                                        <p className="text-[9px] text-gray-400 tracking-widest">{script.date}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center space-x-6">
+                                                    <button onClick={() => { setPreviewUrl(script.url); setPreviewName(script.name); }} className="text-[9px] tracking-widest text-gray-400 hover:text-black underline">View</button>
+                                                    <button onClick={() => handleDeleteFromPillar(selectedPillar, script.id)} className="text-[9px] tracking-widest text-red-400 hover:text-red-600 underline">Delete</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+
+            const VideoDetailsView = () => (
+                <div className="animate-in space-y-8">
+                    <div className="grid grid-cols-1 gap-6">
+                        {contentItems.length === 0 ? (
+                            <div className="bg-white border border-gray-100 rounded-[3rem] p-20 text-center shadow-xl shadow-gray-50">
+                                <p className="text-[10px] tracking-[0.4em] text-gray-300">No video records found</p>
+                            </div>
+                        ) : (
+                            contentItems.map(item => (
+                                <div key={item.id} className="bg-white border border-gray-100 rounded-[3rem] p-10 shadow-xl shadow-gray-50 flex items-center justify-between group hover:border-black transition-all">
+                                    <div className="flex-1 grid grid-cols-6 gap-8">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-gray-500 tracking-[0.2em] mb-2 font-bold">Project / Title</p>
+                                            <p className="text-lg font-bold tracking-tight leading-tight">{item.title}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-gray-500 tracking-[0.2em] mb-2 font-bold">Agent name</p>
+                                            <p className="text-sm tracking-widest font-semibold">{item.agentName || "N/A"}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-gray-500 tracking-[0.2em] mb-2 font-bold">Creator</p>
+                                            <p className="text-sm tracking-widest font-semibold">{item.creator}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-gray-500 tracking-[0.2em] mb-2 font-bold">Target date</p>
+                                            <p className="text-sm tracking-widest font-semibold">{item.deadlineDate}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-gray-500 tracking-[0.2em] mb-2 font-bold uppercase">STATUS</p>
+                                            <div className="mt-1">
+                                                <span className={`px-6 py-3.5 rounded-full text-[15px] tracking-tight font-black shadow-lg ${item.status === 'Published' ? 'bg-green-100 text-green-700 border border-green-200' : item.status === 'Editing' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-gray-100 text-gray-700 border border-gray-200'}`}>{item.status}</span>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-gray-500 tracking-[0.2em] mb-2 font-bold">Posted Date</p>
+                                            <p className="text-sm tracking-widest font-semibold">{item.postedDate || "Not Posted"}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-gray-500 tracking-[0.2em] mb-2 font-bold">Script</p>
+                                            {item.script ? (
+                                                <div className="flex items-center font-semibold">
+                                                    <span className="text-lg mr-2">📎</span>
+                                                    <span className="text-[11px] tracking-widest truncate max-w-[150px]">{item.script}</span>
+                                                    {item.scriptUrl && <button onClick={() => { setPreviewUrl(item.scriptUrl); setPreviewName(item.script); }} className="ml-4 text-[9px] border-b-2 border-black leading-none pb-0.5 hover:opacity-60 transition-opacity font-bold">View</button>}
+                                                </div>
+                                            ) : <span className="text-[10px] text-gray-400 tracking-widest italic font-medium">No script attached</span>}
+                                        </div>
+                                    </div>
+                                    <div className="ml-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => handleOpenModal(item)} className="bg-black text-white px-8 py-4 rounded-2xl text-[9px] tracking-widest hover:scale-105 transition-all shadow-xl shadow-black/10">View / Edit</button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            );
+
+            const EditorialCalendar = () => (
+                <div className="animate-in bg-white border border-gray-100 rounded-[3rem] p-10 min-h-[700px] shadow-2xl shadow-gray-100 flex flex-col">
+                    <div className="flex justify-between items-center mb-10 pb-8 border-b border-gray-50">
+                        <div>
+                            <h3 className="text-2xl font-semibold tracking-tight leading-none">{monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}</h3>
+                            <p className="text-[10px] text-gray-500 mt-2 tracking-widest font-medium">Click any day to add or edit content</p>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                            <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() - 1)))} className="p-4 border border-gray-100 rounded-2xl hover:bg-black hover:text-white transition-all text-xs">Prev</button>
+                            <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() + 1)))} className="p-4 border border-gray-100 rounded-2xl hover:bg-black hover:text-white transition-all text-xs">Next</button>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-7 gap-4 mb-4">
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d} className="text-center text-[11px] text-gray-500 tracking-[0.2em] font-bold">{d}</div>)}
+                    </div>
+                    <div className="grid grid-cols-7 gap-4 flex-1">
+                        {placeholdersArr.map(p => <div key={`p-${p}`} className="p-4"></div>)}
+                        {daysArr.map(d => {
+                            const dateStr = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                            const dayEvents = contentItems.filter(it => it.deadlineDate === dateStr);
+                            return (
+                                <div key={d} onClick={() => handleOpenModal(null, dateStr)} className="border border-gray-50 rounded-2xl p-4 min-h-[110px] hover:border-black/20 hover:bg-gray-50/50 transition-all cursor-pointer group flex flex-col">
+                                    <span className="text-gray-400 text-sm font-semibold group-hover:text-black transition-colors">{d}</span>
+                                    <div className="mt-2 space-y-1">
+                                        {dayEvents.map(it => {
+                                            const colors = it.status === 'Published' ? 'bg-emerald-50 border-emerald-100' :
+                                                it.status === 'Editing' ? 'bg-blue-50 border-blue-100' :
+                                                    it.status === 'Scripting' ? 'bg-purple-50 border-purple-100' :
+                                                        it.status === 'Shooting' ? 'bg-orange-50 border-orange-100' :
+                                                            it.status === 'Review' ? 'bg-amber-50 border-amber-100' :
+                                                                'bg-gray-50 border-gray-100';
+                                            return (
+                                                <div key={it.id} onClick={(e) => { e.stopPropagation(); handleOpenModal(it); }} className={`${colors} border p-3 rounded-2xl shadow-sm hover:border-black transition-all flex flex-col items-start`}>
+                                                    <span className="text-[10px] font-black leading-tight w-full truncate mb-2">{it.title}</span>
+                                                    <div className="flex items-center space-x-2 w-full overflow-hidden">
+                                                        <span className="text-[7px] tracking-widest font-black uppercase px-2 py-0.5 bg-black/5 rounded-full whitespace-nowrap">{it.status}</span>
+                                                        <span className="text-[7px] text-gray-400 font-bold truncate">/ {it.agentName || 'N/A'}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen bg-white text-black flex font-poppins selection:bg-black selection:text-white">
+                    <nav className="w-80 bg-white border-r border-gray-100 flex flex-col fixed inset-y-0 z-50">
+                        <div className="p-12 border-b border-gray-50">
+                            <h1 className="text-xl tracking-[0.2em] leading-none font-bold">Osac Hub</h1>
+                        </div>
+                        <div className="flex-1 px-8 space-y-4 mt-12">
+                            <button onClick={() => setCurrentView('calendar')} className={`w-full flex items-center justify-center px-10 py-7 rounded-3xl transition-all text-sm tracking-[0.2em] font-bold ${currentView === 'calendar' ? 'bg-black text-white shadow-xl shadow-black/20' : 'text-gray-500 hover:text-black hover:bg-gray-50'}`}>
+                                CALENDAR
+                            </button>
+                            <button onClick={() => handleOpenModal()} className="w-full flex items-center justify-center px-10 py-7 rounded-3xl transition-all text-sm tracking-[0.2em] border-2 border-black/5 hover:border-black bg-gray-50/50 font-bold">
+                                NEW VIDEO
+                            </button>
+                            <button onClick={() => setCurrentView('details')} className={`w-full flex items-center justify-center px-10 py-7 rounded-3xl transition-all text-sm tracking-[0.2em] ${currentView === 'details' ? 'bg-black text-white shadow-xl shadow-black/20' : 'text-gray-600 hover:text-black hover:bg-gray-50'} mt-4 font-bold`}>
+                                VIDEO DETAILS
+                            </button>
+                            <button onClick={() => setCurrentView('pillars')} className={`w-full flex items-center justify-center px-10 py-7 rounded-3xl transition-all text-sm tracking-[0.2em] ${currentView === 'pillars' ? 'bg-black text-white shadow-xl shadow-black/20' : 'text-gray-600 hover:text-black hover:bg-gray-50'} border-2 border-dashed border-gray-100 mt-4 group font-bold`}>
+                                SCRIPT PILLARS
+                            </button>
+                        </div>
+                    </nav>
+
+                    <main className="flex-1 ml-80 p-20 max-w-[1700px]">
+                        <header className="mb-20 flex justify-between items-end border-b border-gray-100 pb-12">
+                            <div>
+
+                                <h2 className="text-5xl tracking-tighter font-black leading-tight">
+                                    {currentView === 'calendar' ? 'Marketing Board' : currentView === 'pillars' ? 'Content pillars' : currentView === 'details' ? 'Video details' : 'Settings'}
+                                </h2>
+                                <p className="text-[12px] text-gray-400 mt-6 tracking-[0.5em] font-bold uppercase">Content operations</p>
+                            </div>
+                        </header>
+                        {currentView === 'calendar' && <EditorialCalendar />}
+                        {currentView === 'pillars' && <ContentPillarsView />}
+                        {currentView === 'details' && <VideoDetailsView />}
+                    </main>
+
+                    {previewUrl && (
+                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-12 bg-black/95 backdrop-blur-3xl animate-in font-poppins">
+                            <button onClick={() => setPreviewUrl(null)} className="absolute top-10 right-10 text-white text-5xl font-light hover:scale-110 transition-all">&times;</button>
+                            <div className="w-full max-w-5xl flex flex-col items-center">
+                                <p className="text-white text-[10px] tracking-[0.5em] mb-10 opacity-50 font-medium">Viewing attached file: {previewName}</p>
+                                <div className="bg-white rounded-[2rem] shadow-2xl w-full max-h-[80vh] overflow-y-auto custom-scrollbar flex flex-col items-center p-4">
+                                    {previewName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/) || previewUrl.startsWith('blob:') ? <img src={previewUrl} className="w-full h-auto rounded-xl" alt="Preview" /> : (
+                                        <div className="p-20 text-center">
+                                            <p className="text-2xl tracking-tighter mb-8 text-black">Document preview not available</p>
+                                            <a href={previewUrl} download={previewName} className="bg-black text-white px-10 py-5 rounded-2xl text-[10px] tracking-widest font-normal">Download to view</a>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {isModalOpen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-12 bg-white/95 backdrop-blur-xl animate-in font-poppins">
+                            <div className="bg-white border border-black/10 rounded-[4rem] w-full max-w-2xl p-20 shadow-[0_0_100px_rgba(0,0,0,0.05)] relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+                                <button onClick={() => setIsModalOpen(false)} className="absolute top-10 right-10 text-4xl hover:scale-110 transition-all font-light text-black">&times;</button>
+                                <h2 className="text-4xl mb-12 tracking-tighter font-normal text-black">
+                                    {editingItem ? 'Edit video' : 'Add new video'}
+                                </h2>
+                                <form className="space-y-12" onSubmit={handleSave}>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] tracking-widest text-gray-400">Project / video title</label>
+                                        <input required value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} placeholder="Experience Dubai vlog..." className="w-full bg-gray-50 border border-transparent rounded-3xl px-8 py-6 focus:border-black outline-none transition-all text-sm tracking-widest text-black" />
+                                    </div>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] tracking-widest text-gray-400">Content creator name</label>
+                                        <input required value={formData.creator} onChange={(e) => setFormData({ ...formData, creator: e.target.value })} placeholder="Full name..." className="w-full bg-gray-50 border border-transparent rounded-3xl px-8 py-6 focus:border-black outline-none transition-all text-sm tracking-widest text-black" />
+                                    </div>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] tracking-widest text-gray-400">Agent name (In video)</label>
+                                        <input required value={formData.agentName} onChange={(e) => setFormData({ ...formData, agentName: e.target.value })} placeholder="Agent name..." className="w-full bg-gray-50 border border-transparent rounded-3xl px-8 py-6 focus:border-black outline-none transition-all text-sm tracking-widest text-black" />
+                                    </div>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] tracking-widest text-gray-400">Script attachment</label>
+                                        <div className="relative group">
+                                            <input type="file" id="projectScriptFile" onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onloadend = () => { setFormData({ ...formData, script: file.name, scriptUrl: reader.result }); };
+                                                    reader.readAsDataURL(file);
+                                                }
+                                            }} className="hidden" accept="image/*,.pdf,.doc,.docx,.txt" />
+                                            <label htmlFor="projectScriptFile" className="w-full bg-gray-50 border border-dashed border-gray-200 rounded-3xl px-8 py-10 flex flex-col items-center justify-center cursor-pointer hover:border-black hover:bg-gray-100 transition-all group overflow-hidden">
+                                                {formData.scriptUrl && formData.scriptUrl.startsWith('data:image') ? (
+                                                    <div className="w-full flex flex-col items-center">
+                                                        <img src={formData.scriptUrl} className="max-w-[200px] h-auto rounded-xl mb-4 shadow-sm" alt="Preview" />
+                                                        <span className="text-[10px] text-black font-semibold">{formData.script}</span>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <span className="text-3xl mb-3 group-hover:scale-110 transition-transform">📎</span>
+                                                        <span className="text-[10px] tracking-widest text-gray-400 group-hover:text-black">{formData.script ? `Attached: ${formData.script}` : "Upload script for this video"}</span>
+                                                    </>
+                                                )}
+                                                {formData.script && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormData({ ...formData, script: '', scriptUrl: '' }); }} className="mt-4 text-[9px] text-red-500 underline tracking-widest">Remove file</button>}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-8">
+                                        <div className="space-y-4">
+                                            <label className="text-[10px] tracking-widest text-gray-400">Target date</label>
+                                            <input type="date" required value={formData.deadlineDate} onChange={(e) => setFormData({ ...formData, deadlineDate: e.target.value })} className="w-full bg-gray-50 border border-transparent rounded-3xl px-8 py-6 focus:border-black outline-none transition-all text-xs text-black" />
+                                        </div>
+                                        <div className="space-y-4">
+                                            <label className="text-[10px] tracking-widest text-gray-400">Posted date</label>
+                                            <input type="date" value={formData.postedDate} onChange={(e) => setFormData({ ...formData, postedDate: e.target.value })} className="w-full bg-gray-50 border border-transparent rounded-3xl px-8 py-6 focus:border-black outline-none transition-all text-xs text-black" />
+                                        </div>
+                                        <div className="space-y-4">
+                                            <label className="text-[10px] tracking-widest text-gray-400">Status</label>
+                                            <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full bg-gray-50 border border-transparent rounded-3xl px-8 py-6 focus:border-black outline-none transition-all text-xs text-black">
+                                                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-6 pt-8">
+                                        {editingItem && <button type="button" onClick={handleDelete} className="flex-1 py-6 border border-red-100 text-red-500 rounded-3xl text-[10px] tracking-widest hover:bg-red-50 transition-all font-medium">Delete project</button>}
+                                        <button type="submit" className="flex-[2] bg-black text-white py-6 rounded-3xl text-[10px] tracking-widest font-normal shadow-2xl shadow-black/20 hover:scale-[1.02] transition-all">
+                                            {editingItem ? 'Update video' : 'Save to board'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<OSACMarketingHub />);
+    </script>
+</body>
+
+</html>
