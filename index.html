@@ -849,7 +849,7 @@
             };
 
             const EditorialCalendar = () => (
-                <div className="animate-in bg-white border border-gray-100 rounded-[3rem] p-10 min-h-[700px] shadow-2xl shadow-gray-100 flex flex-col">
+                <div className="animate-in bg-gray-50 border border-gray-100 rounded-[3rem] p-10 min-h-[700px] shadow-2xl shadow-gray-100 flex flex-col">
                     <div className="flex flex-col lg:flex-row justify-between lg:items-center mb-10 pb-8 gap-6">
                         <div>
                             <h3 className="text-2xl font-semibold tracking-tight leading-none">{monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}</h3>
@@ -873,8 +873,11 @@
                             const dayEvents = dayData.events;
                             const dayPhotoshoots = dayData.photoshoots;
                             return (
-                                <div key={d} onClick={() => handleOpenModal(null, dateStr)} className="border border-gray-50 rounded-2xl p-4 min-h-[110px] hover:border-black/20 hover:bg-gray-50/50 transition-all cursor-pointer group flex flex-col">
-                                    <span className="text-gray-400 text-sm font-semibold group-hover:text-black transition-colors">{d}</span>
+                                <div key={d} onClick={() => handleOpenModal(null, dateStr)} className="bg-white border border-gray-100 rounded-3xl p-5 min-h-[140px] hover:border-black/20 hover:shadow-xl hover:shadow-gray-200/50 transition-all cursor-pointer group flex flex-col relative overflow-hidden">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <span className="text-2xl font-black tracking-tighter text-black/20 group-hover:text-black transition-colors">{d}</span>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-gray-100 group-hover:bg-black transition-colors mt-2"></div>
+                                    </div>
                                     <div className="mt-2 space-y-1">
                                         {dayEvents.map(it => {
                                             const theme = STATUS_THEMES[it.status] || STATUS_THEMES.Default;
