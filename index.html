@@ -872,19 +872,21 @@
                                     <span className="text-gray-400 text-sm font-semibold group-hover:text-black transition-colors">{d}</span>
                                     <div className="mt-2 space-y-1">
                                         {dayEvents.map(it => {
-                                            const colors = it.status === 'Published' ? 'bg-emerald-50 border-emerald-100' :
-                                                it.status === 'Approved' ? 'bg-emerald-50 border-emerald-100' :
-                                                it.status === 'Editing' ? 'bg-blue-50 border-blue-100' :
-                                                    it.status === 'Scripting' ? 'bg-purple-50 border-purple-100' :
-                                                        it.status === 'Scheduled Shoot' ? 'bg-orange-50 border-orange-100' :
-                                                            it.status === 'Review' ? 'bg-amber-50 border-amber-100' :
-                                                                'bg-gray-50 border-gray-100';
+                                            const colors = it.status === 'Published' ? 'bg-red-500 border-red-600 text-white' :
+                                                it.status === 'Approved' ? 'bg-emerald-500 border-emerald-600 text-white' :
+                                                it.status === 'Editing' ? 'bg-blue-500 border-blue-600 text-white' :
+                                                    it.status === 'Scripting' ? 'bg-purple-500 border-purple-600 text-white' :
+                                                        it.status === 'Scheduled Shoot' ? 'bg-orange-500 border-orange-600 text-white' :
+                                                            it.status === 'Review' ? 'bg-amber-400 border-amber-500 text-black' :
+                                                                'bg-gray-100 border-gray-200 text-gray-800';
+                                            const metadataColor = (it.status === 'Review' || it.status === 'Default') ? 'text-black/60' : 'text-white/80';
+                                            const pillBg = (it.status === 'Review' || it.status === 'Default') ? 'bg-black/10' : 'bg-white/20';
                                             return (
-                                                <div key={it.id} onClick={(e) => { e.stopPropagation(); handleOpenModal(it); }} className={`${colors} border p-3 rounded-2xl shadow-sm hover:border-black transition-all flex flex-col items-start`}>
+                                                <div key={it.id} onClick={(e) => { e.stopPropagation(); handleOpenModal(it); }} className={`${colors} border p-3 rounded-2xl shadow-sm hover:scale-[1.02] hover:shadow-md transition-all flex flex-col items-start`}>
                                                     <span className="text-[10px] font-black leading-tight w-full truncate mb-2">{it.title}</span>
                                                     <div className="flex items-center space-x-2 w-full overflow-hidden">
-                                                        <span className="text-[7px] tracking-widest font-black uppercase px-2 py-0.5 bg-black/5 rounded-full whitespace-nowrap">{it.status}</span>
-                                                        <span className="text-[7px] text-gray-400 font-bold truncate">/ {it.agentName || 'N/A'}</span>
+                                                        <span className={`text-[7px] tracking-widest font-black uppercase px-2 py-0.5 ${pillBg} rounded-full whitespace-nowrap`}>{it.status}</span>
+                                                        <span className={`text-[7px] ${metadataColor} font-bold truncate`}>/ {it.agentName || 'N/A'}</span>
                                                     </div>
                                                 </div>
                                             );
