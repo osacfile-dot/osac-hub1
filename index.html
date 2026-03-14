@@ -246,16 +246,21 @@
                 const map = {};
                 contentItems.forEach(item => {
                     const date = item.deadlineDate;
-                    if (!map[date]) map[date] = { events: [], photoshoots: [] };
+                    if (!map[date]) map[date] = { events: [], photoshoots: [], hhPhotoshoots: [] };
                     map[date].events.push(item);
                 });
                 photoshoots.forEach(ps => {
                     const date = ps.date;
-                    if (!map[date]) map[date] = { events: [], photoshoots: [] };
+                    if (!map[date]) map[date] = { events: [], photoshoots: [], hhPhotoshoots: [] };
                     map[date].photoshoots.push(ps);
                 });
+                holidayHomesPhotoshoots.forEach(hh => {
+                    const date = hh.date;
+                    if (!map[date]) map[date] = { events: [], photoshoots: [], hhPhotoshoots: [] };
+                    map[date].hhPhotoshoots.push(hh);
+                });
                 return map;
-            }, [contentItems, photoshoots]);
+            }, [contentItems, photoshoots, holidayHomesPhotoshoots]);
 
             const [currentView, setCurrentView] = useState('calendar');
             const [creatorFilters, setCreatorFilters] = useState({});
@@ -910,9 +915,10 @@
                                 {placeholdersArr.map(p => <div key={`p-${p}`} className="p-4"></div>)}
                                 {daysArr.map(d => {
                             const dateStr = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                            const dayData = itemsByDate[dateStr] || { events: [], photoshoots: [] };
+                            const dayData = itemsByDate[dateStr] || { events: [], photoshoots: [], hhPhotoshoots: [] };
                             const dayEvents = dayData.events;
                             const dayPhotoshoots = dayData.photoshoots;
+                            const dayHHPhotoshoots = dayData.hhPhotoshoots || [];
                             return (
                                 <div key={d} onClick={() => handleOpenModal(null, dateStr)} className="bg-white border border-gray-100 rounded-3xl p-5 min-h-[140px] hover:border-black/20 hover:shadow-xl hover:shadow-gray-200/50 transition-all cursor-pointer group flex flex-col relative overflow-hidden">
                                     <div className="flex justify-between items-start mb-4">
@@ -938,6 +944,12 @@
                                                 <span className="text-[7px] text-emerald-100 font-bold uppercase">{ps.team}</span>
                                             </div>
                                         ))}
+                                        {dayHHPhotoshoots.map(hh => (
+                                            <div key={hh.id} onClick={(e) => { e.stopPropagation(); handleOpenHHModal(hh); }} className="bg-violet-600 border border-violet-700 p-2 rounded-xl shadow-sm hover:border-black transition-all flex flex-col items-start cursor-pointer">
+                                                <span className="text-[7px] text-violet-200 font-black tracking-widest uppercase mb-0.5">HOLIDAYHOMES</span>
+                                                <span className="text-[9px] text-white font-black leading-tight w-full truncate">{hh.apartmentName}</span>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             );
@@ -948,107 +960,162 @@
                 </div>
             );
 
-            const PhotoshootDetailsView = () => (
-                <div className="animate-in space-y-12">
+            const PS_STATUSES = ['Scheduled', 'Delivered'];
+            const PS_COLORS = {
+                'Scheduled':  { bg: 'bg-blue-50',   border: 'border-blue-100',   header: 'bg-blue-500',   text: 'text-blue-700'   },
+                'Delivered':  { bg: 'bg-green-50',  border: 'border-green-100',  header: 'bg-green-600',  text: 'text-green-700'  },
+            };
 
-                    {/* ── AGENT PHOTOSHOOTS ── */}
-                    <div>
-                        <div className="flex justify-between items-center mb-8">
-                            <div>
-                                <h3 className="text-2xl font-black tracking-tighter">Agent Photoshoots</h3>
-                                <p className="text-[10px] text-gray-400 tracking-widest mt-1">Schedule photoshoots for agents</p>
+            const PhotoshootDetailsView = () => {
+                const [psDragOver, setPsDragOver] = React.useState(null);
+                const [psDraggingId, setPsDraggingId] = React.useState(null);
+
+                // Group agent photoshoots by status
+                const agentGrouped = React.useMemo(() => {
+                    const map = {};
+                    PS_STATUSES.forEach(s => map[s] = []);
+                    photoshoots.forEach(ps => {
+                        const s = ps.status || 'Scheduled';
+                        if (map[s]) map[s].push(ps); else map['Scheduled'].push(ps);
+                    });
+                    return map;
+                }, [photoshoots]);
+
+                // Group hh photoshoots by status
+                const hhGrouped = React.useMemo(() => {
+                    const map = {};
+                    PS_STATUSES.forEach(s => map[s] = []);
+                    holidayHomesPhotoshoots.forEach(hh => {
+                        const s = hh.status || 'Scheduled';
+                        if (map[s]) map[s].push(hh); else map['Scheduled'].push(hh);
+                    });
+                    return map;
+                }, [holidayHomesPhotoshoots]);
+
+                // Drag handlers for agent photoshoots
+                const handleAgentDragStart = (e, id) => { e.dataTransfer.setData('text/plain', 'agent:' + id); setPsDraggingId('agent:' + id); };
+                const handleAgentDragEnd = () => { setPsDraggingId(null); setPsDragOver(null); };
+                const handleAgentDrop = async (e, newStatus, col) => {
+                    e.preventDefault(); setPsDragOver(null); setPsDraggingId(null);
+                    const raw = e.dataTransfer.getData('text/plain');
+                    if (!raw.startsWith('agent:')) return;
+                    const itemId = raw.replace('agent:', '');
+                    const item = photoshoots.find(i => String(i.id) === String(itemId));
+                    if (!item || item.status === newStatus) return;
+                    try {
+                        const { error } = await supabaseClient.from('photoshoots').update({ status: newStatus }).eq('id', item.id);
+                        if (error) throw error;
+                        await fetchData();
+                    } catch(err) { alert('Error: ' + err.message); }
+                };
+
+                // Drag handlers for hh photoshoots
+                const handleHHDragStart = (e, id) => { e.dataTransfer.setData('text/plain', 'hh:' + id); setPsDraggingId('hh:' + id); };
+                const handleHHDragEnd = () => { setPsDraggingId(null); setPsDragOver(null); };
+                const handleHHDrop = (e, newStatus, col) => {
+                    e.preventDefault(); setPsDragOver(null); setPsDraggingId(null);
+                    const raw = e.dataTransfer.getData('text/plain');
+                    if (!raw.startsWith('hh:')) return;
+                    const itemId = Number(raw.replace('hh:', ''));
+                    const item = holidayHomesPhotoshoots.find(i => i.id === itemId);
+                    if (!item || item.status === newStatus) return;
+                    saveHolidayHomesPhotoshoots(holidayHomesPhotoshoots.map(h => h.id === itemId ? { ...h, status: newStatus } : h));
+                };
+
+                const KanbanBoard = ({ title, icon, grouped, accentClass, onAdd, onItemClick, onDragStart, onDragEnd, onDrop, renderCard, prefix }) => (
+                    <div className="mb-12">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="flex items-center gap-3">
+                                {icon && <span className="text-2xl">{icon}</span>}
+                                <h3 className="text-xl font-black tracking-tighter">{title}</h3>
                             </div>
-                            <button onClick={() => handleOpenPhotoshootModal()} className="bg-emerald-600 text-white px-8 py-4 rounded-2xl text-[10px] tracking-widest font-bold shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all">
-                                + Add photoshoot
-                            </button>
+                            <button onClick={onAdd} className={`${accentClass} text-white px-7 py-3 rounded-2xl text-[10px] tracking-widest font-bold shadow-xl hover:opacity-90 transition-all`}>+ Add</button>
                         </div>
-                        <div className="grid grid-cols-1 gap-6">
-                            {photoshoots.length === 0 ? (
-                                <div className="bg-white border border-gray-100 rounded-[3rem] p-16 text-center shadow-xl shadow-gray-50">
-                                    <p className="text-[10px] tracking-[0.4em] text-gray-300">No photoshoot records found</p>
-                                </div>
-                            ) : (
-                                photoshoots.map(item => (
-                                    <div key={item.id} className="bg-white border border-emerald-50 rounded-[3rem] p-10 shadow-xl shadow-emerald-50/30 flex items-center justify-between group hover:border-emerald-500 transition-all">
-                                        <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-8 text-emerald-900">
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] text-emerald-500 tracking-[0.2em] mb-2 font-bold uppercase">Photoshoot Name</p>
-                                                <p className="text-lg font-bold tracking-tight leading-tight">{item.name}</p>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] text-emerald-500 tracking-[0.2em] mb-2 font-bold uppercase">Assigned Team</p>
-                                                <p className="text-sm tracking-widest font-semibold">{item.team}</p>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] text-emerald-500 tracking-[0.2em] mb-2 font-bold uppercase">Scheduled Date</p>
-                                                <p className="text-sm tracking-widest font-semibold">{item.date}</p>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] text-emerald-500 tracking-[0.2em] mb-2 font-bold uppercase">Type</p>
-                                                <div className="mt-1">
-                                                    <span className="px-6 py-3 rounded-full text-[10px] tracking-widest font-black bg-emerald-100 text-emerald-700 border border-emerald-200 uppercase">Photoshoot</span>
+                        <p className="text-[10px] text-gray-400 tracking-widest mb-5 font-bold">DRAG AND DROP between columns to update status</p>
+                        <div className="flex gap-5 overflow-x-auto custom-scrollbar pb-4" style={{minHeight: '420px'}}>
+                            {PS_STATUSES.map(status => {
+                                const colors = PS_COLORS[status];
+                                const items = grouped[status] || [];
+                                const colId = prefix + status;
+                                const isOver = psDragOver === colId;
+                                return (
+                                    <div key={status}
+                                        className={`flex-shrink-0 flex flex-col rounded-2xl border-2 transition-all ${isOver ? 'border-black bg-black/5 scale-[1.02]' : 'border-gray-100 bg-white'}`}
+                                        style={{width:'240px'}}
+                                        onDragOver={e => { e.preventDefault(); setPsDragOver(colId); }}
+                                        onDragLeave={() => setPsDragOver(null)}
+                                        onDrop={e => onDrop(e, status, colId)}
+                                    >
+                                        <div className={`${colors.header} text-white px-4 py-3 rounded-t-xl flex items-center justify-between`}>
+                                            <span className="text-[10px] tracking-widest font-black uppercase">{status}</span>
+                                            <span className="bg-white/20 px-2 py-0.5 rounded-full text-[9px] font-bold">{items.length}</span>
+                                        </div>
+                                        <div className="flex-1 p-3 space-y-3 overflow-y-auto custom-scrollbar" style={{maxHeight:'360px'}}>
+                                            {items.length === 0 ? (
+                                                <div className="flex items-center justify-center py-8 text-gray-300">
+                                                    <p className="text-[9px] tracking-[0.2em] uppercase">Drop here</p>
                                                 </div>
-                                            </div>
-                                        </div>
-                                        <div className="ml-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => handleOpenPhotoshootModal(item)} className="bg-emerald-600 text-white px-8 py-4 rounded-2xl text-[9px] tracking-widest hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200">View / Edit</button>
+                                            ) : items.map(item => renderCard(item, colors))}
                                         </div>
                                     </div>
-                                ))
-                            )}
+                                );
+                            })}
                         </div>
                     </div>
+                );
 
-                    {/* ── DIVIDER ── */}
-                    <div className="border-t-2 border-dashed border-violet-100"></div>
-
-                    {/* ── HOLIDAYHOMES PHOTOSHOOTS ── */}
-                    <div>
-                        <div className="flex justify-between items-center mb-8">
-                            <div>
-                                <div className="flex items-center gap-3 mb-1">
-                                    <span className="text-2xl">🏠</span>
-                                    <h3 className="text-2xl font-black tracking-tighter">HolidayHomes Photoshoots</h3>
+                return (
+                    <div className="animate-in">
+                        <KanbanBoard
+                            title="Agent Photoshoots" icon="📸"
+                            accentClass="bg-emerald-600"
+                            grouped={agentGrouped}
+                            onAdd={() => handleOpenPhotoshootModal()}
+                            onDragStart={handleAgentDragStart}
+                            onDragEnd={handleAgentDragEnd}
+                            onDrop={handleAgentDrop}
+                            prefix="agent-"
+                            renderCard={(item, colors) => (
+                                <div key={item.id} draggable
+                                    onDragStart={e => handleAgentDragStart(e, item.id)}
+                                    onDragEnd={handleAgentDragEnd}
+                                    onClick={() => handleOpenPhotoshootModal(item)}
+                                    className={`${colors.bg} border ${colors.border} rounded-xl p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-all ${psDraggingId === 'agent:' + item.id ? 'opacity-40 scale-95' : ''}`}
+                                >
+                                    <p className="text-xs font-bold tracking-tight mb-1 truncate">{item.name}</p>
+                                    <p className={`text-[9px] font-semibold truncate mb-1 ${colors.text}`}>{item.team}</p>
+                                    <p className="text-[9px] text-gray-400 tracking-wider">{item.date}</p>
                                 </div>
-                                <p className="text-[10px] text-gray-400 tracking-widest mt-1">Schedule photoshoots for holiday home properties</p>
-                            </div>
-                            <button onClick={() => handleOpenHHModal()} className="bg-violet-600 text-white px-8 py-4 rounded-2xl text-[10px] tracking-widest font-bold shadow-xl shadow-violet-200 hover:bg-violet-700 transition-all">
-                                + Add HH Photoshoot
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-1 gap-6">
-                            {holidayHomesPhotoshoots.length === 0 ? (
-                                <div className="bg-violet-50/40 border border-violet-100 rounded-[3rem] p-16 text-center">
-                                    <p className="text-[10px] tracking-[0.4em] text-violet-300">No HolidayHomes photoshoots yet</p>
-                                </div>
-                            ) : (
-                                holidayHomesPhotoshoots.map(item => (
-                                    <div key={item.id} className="bg-white border border-violet-100 rounded-[3rem] p-10 shadow-xl shadow-violet-50/30 flex items-center justify-between group hover:border-violet-500 transition-all">
-                                        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-8 text-violet-900">
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] text-violet-500 tracking-[0.2em] mb-2 font-bold uppercase">Apartment Name</p>
-                                                <p className="text-lg font-bold tracking-tight leading-tight">{item.apartmentName}</p>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] text-violet-500 tracking-[0.2em] mb-2 font-bold uppercase">Location</p>
-                                                <p className="text-sm tracking-widest font-semibold">{item.location}</p>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] text-violet-500 tracking-[0.2em] mb-2 font-bold uppercase">Date of Photoshoot</p>
-                                                <p className="text-sm tracking-widest font-semibold">{item.date}</p>
-                                            </div>
-                                        </div>
-                                        <div className="ml-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => handleOpenHHModal(item)} className="bg-violet-600 text-white px-8 py-4 rounded-2xl text-[9px] tracking-widest hover:bg-violet-700 transition-all shadow-xl shadow-violet-200">View / Edit</button>
-                                        </div>
-                                    </div>
-                                ))
                             )}
-                        </div>
-                    </div>
+                        />
 
-                </div>
-            );
+                        <div className="border-t-2 border-dashed border-violet-100 mb-10"></div>
+
+                        <KanbanBoard
+                            title="HolidayHomes Photoshoots" icon="🏠"
+                            accentClass="bg-violet-600"
+                            grouped={hhGrouped}
+                            onAdd={() => handleOpenHHModal()}
+                            onDragStart={handleHHDragStart}
+                            onDragEnd={handleHHDragEnd}
+                            onDrop={handleHHDrop}
+                            prefix="hh-"
+                            renderCard={(item, colors) => (
+                                <div key={item.id} draggable
+                                    onDragStart={e => handleHHDragStart(e, item.id)}
+                                    onDragEnd={handleHHDragEnd}
+                                    onClick={() => handleOpenHHModal(item)}
+                                    className={`${colors.bg} border ${colors.border} rounded-xl p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-all ${psDraggingId === 'hh:' + item.id ? 'opacity-40 scale-95' : ''}`}
+                                >
+                                    <p className="text-xs font-bold tracking-tight mb-1 truncate">{item.apartmentName}</p>
+                                    <p className={`text-[9px] font-semibold truncate mb-0.5 ${colors.text}`}>{item.location}</p>
+                                    <p className="text-[9px] text-gray-400 tracking-wider">{item.date}</p>
+                                </div>
+                            )}
+                        />
+                    </div>
+                );
+            };
 
             return (
                 <div className="min-h-screen bg-white text-black flex font-poppins selection:bg-black selection:text-white">
